@@ -23,7 +23,7 @@ A modern, iOS-style file sharing application that allows users to securely uploa
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/dbaidya811-beep/SecureShare.git
 ```
 
 2. Install dependencies:
