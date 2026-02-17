@@ -102,23 +102,23 @@ export default function Home() {
       // Encrypt the file
       const encrypted = encryptFile(fileData, key);
       
-      // Upload to File.io for cross-device sharing
-      let fileIoLink = '';
+      // Upload to 0x0.st for cross-device sharing
+      let fileHostLink = '';
       try {
         const formData = new FormData();
         formData.append('file', new Blob([e.target.result], { type: file.type }), file.name);
         
-        const response = await fetch('https://file.io', {
+        const response = await fetch('https://0x0.st', {
           method: 'POST',
           body: formData
         });
         
-        const result = await response.json();
-        if (result.success) {
-          fileIoLink = result.link;
+        const result = await response.text();
+        if (result.startsWith('https://')) {
+          fileHostLink = result.trim();
         }
       } catch (err) {
-        console.error('File.io upload error:', err);
+        console.error('0x0.st upload error:', err);
       }
       
       // Store in localStorage as backup
@@ -128,7 +128,7 @@ export default function Home() {
         fileName: file.name,
         fileType: file.type,
         key: key,
-        fileIoLink: fileIoLink
+        fileHostLink: fileHostLink
       };
       
       try {
@@ -149,7 +149,7 @@ export default function Home() {
         key: key,
         name: file.name,
         type: file.type,
-        link: fileIoLink,
+        link: fileHostLink,
         local: !!fileIoLink
       });
       
@@ -262,15 +262,15 @@ export default function Home() {
   const handleDownload = async () => {
     if (!scannedData) return;
     
-    let fileIoLink = scannedData.link || '';
+    let fileHostLink = scannedData.link || '';
     
-    // If we have a File.io link from QR code, download through app
-    if (fileIoLink) {
+    // If we have a 0x0.st link from QR code, download through app
+    if (fileHostLink) {
       try {
         setScanError('Downloading file...');
         
-        // Fetch file from File.io
-        const response = await fetch(fileIoLink);
+        // Fetch file from 0x0.st
+        const response = await fetch(fileHostLink);
         const blob = await response.blob();
         
         // Create download link
