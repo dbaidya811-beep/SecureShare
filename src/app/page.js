@@ -27,9 +27,28 @@ export default function Home() {
   const [scanError, setScanError] = useState(null);
   const [scannerLoading, setScannerLoading] = useState(false);
   const [manualQrInput, setManualQrInput] = useState('');
-  const [uploadHistory, setUploadHistory] = useState([]);
+  const [uploadHistory, setUploadHistory] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('uploadHistory');
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const qrRef = useRef(null);
   const scannerRef = useRef(null);
+
+  // Save history to localStorage when it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
+    } catch (err) {
+      console.error('Error saving history:', err);
+    }
+  }, [uploadHistory]);
 
   const handleManualQrSubmit = (e) => {
     e.preventDefault();
@@ -77,7 +96,19 @@ export default function Home() {
       // Encrypt the file
       const encrypted = encryptFile(fileData, key);
       
-      // Store encrypted file
+      // Store encrypted file in localStorage (for same-browser persistence)
+      try {
+        localStorage.setItem(`file_${id}`, JSON.stringify({
+          encryptedData: encrypted,
+          fileName: file.name,
+          fileType: file.type,
+          key: key
+        }));
+      } catch (err) {
+        console.error('localStorage error:', err);
+      }
+      
+      storeFile(id, encrypted, file.name, file.type, key);
       storeFile(id, encrypted, file.name, file.type, key);
       
       setFileKey(key);
@@ -201,25 +232,56 @@ export default function Home() {
   const handleDownload = () => {
     if (!scannedData) return;
     
-    const fileData = retrieveFile(scannedData.id, scannedData.key);
+    // Try to get from localStorage first (for Vercel deployment)
+    let fileData = null;
+    let fileName = '';
+    let fileType = '';
+    let encryptedData = '';
     
-    if (fileData && fileData.error) {
-      setScanError(fileData.error);
-      return;
+    try {
+      const stored = localStorage.getItem(`file_${scannedData.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.key === scannedData.key) {
+          fileData = parsed;
+          fileName = parsed.fileName;
+          fileType = parsed.fileType;
+          encryptedData = parsed.encryptedData;
+        } else {
+          setScanError('Invalid decryption key');
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('localStorage read error:', err);
     }
     
-    if (fileData) {
-      // For encrypted files, decrypt and provide download
-      const decrypted = decryptFile(fileData.encryptedData, scannedData.key);
-      
-      if (decrypted) {
-        const link = document.createElement('a');
-        link.href = decrypted;
-        link.download = scannedData.name || 'downloaded-file';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    // Fallback to in-memory store
+    if (!fileData) {
+      const memData = retrieveFile(scannedData.id, scannedData.key);
+      if (!memData) {
+        setScanError('File not found. This may happen if the file was uploaded in a different browser session.');
+        return;
       }
+      if (memData.error) {
+        setScanError(memData.error);
+        return;
+      }
+      fileName = memData.fileName;
+      fileType = memData.fileType;
+      encryptedData = memData.encryptedData;
+    }
+    
+    // Decrypt and download
+    const decrypted = decryptFile(encryptedData, scannedData.key);
+    
+    if (decrypted) {
+      const link = document.createElement('a');
+      link.href = decrypted;
+      link.download = fileName || 'downloaded-file';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 
@@ -613,7 +675,15 @@ export default function Home() {
             {/* Clear History Button */}
             {uploadHistory.length > 0 && (
               <button
-                onClick={() => setUploadHistory([])}
+                onClick={() => {
+                  // Clear localStorage files
+                  uploadHistory.forEach(item => {
+                    try {
+                      localStorage.removeItem(`file_${item.id}`);
+                    } catch (e) {}
+                  });
+                  setUploadHistory([]);
+                }}
                 className="w-full py-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-600 font-semibold transition-colors"
               >
                 Clear History
