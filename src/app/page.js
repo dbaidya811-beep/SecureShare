@@ -84,9 +84,15 @@ export default function Home() {
     const file = event.target.files[0];
     if (!file) return;
 
+    // Check file size (File.io has 5GB limit, but we'll use 100MB for practical use)
+    if (file.size > 100 * 1024 * 1024) {
+      alert('File too large! Maximum size is 100MB.');
+      return;
+    }
+
     setSelectedFile(file);
     
-    // Read file and encrypt
+    // Read file
     const reader = new FileReader();
     reader.onload = async (e) => {
       const fileData = e.target.result;
@@ -96,19 +102,41 @@ export default function Home() {
       // Encrypt the file
       const encrypted = encryptFile(fileData, key);
       
-      // Store encrypted file in localStorage (for same-browser persistence)
+      // Upload to File.io for cross-device sharing
+      let fileIoLink = '';
       try {
-        localStorage.setItem(`file_${id}`, JSON.stringify({
-          encryptedData: encrypted,
-          fileName: file.name,
-          fileType: file.type,
-          key: key
-        }));
+        const formData = new FormData();
+        formData.append('file', new Blob([e.target.result], { type: file.type }), file.name);
+        
+        const response = await fetch('https://file.io', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          fileIoLink = result.link;
+        }
+      } catch (err) {
+        console.error('File.io upload error:', err);
+      }
+      
+      // Store in localStorage as backup
+      const storageKey = `file_${id}`;
+      const storageData = {
+        encryptedData: encrypted,
+        fileName: file.name,
+        fileType: file.type,
+        key: key,
+        fileIoLink: fileIoLink
+      };
+      
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(storageData));
       } catch (err) {
         console.error('localStorage error:', err);
       }
       
-      storeFile(id, encrypted, file.name, file.type, key);
       storeFile(id, encrypted, file.name, file.type, key);
       
       setFileKey(key);
@@ -120,7 +148,9 @@ export default function Home() {
         id: id,
         key: key,
         name: file.name,
-        type: file.type
+        type: file.type,
+        link: fileIoLink,
+        local: !!fileIoLink
       });
       
       const qrUrl = await QRCode.toDataURL(qrData, {
@@ -229,10 +259,39 @@ export default function Home() {
     }, 100);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!scannedData) return;
     
-    // Try to get from localStorage first (for Vercel deployment)
+    let fileIoLink = scannedData.link || '';
+    
+    // If we have a File.io link from QR code, download through app
+    if (fileIoLink) {
+      try {
+        setScanError('Downloading file...');
+        
+        // Fetch file from File.io
+        const response = await fetch(fileIoLink);
+        const blob = await response.blob();
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = scannedData.name || 'downloaded-file';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        setScanError(null);
+        return;
+      } catch (err) {
+        console.error('Download error:', err);
+        setScanError('Download failed. Please try again.');
+        return;
+      }
+    }
+    
+    // Try to get from localStorage first (for same-browser persistence)
     let fileData = null;
     let fileName = '';
     let fileType = '';
@@ -260,7 +319,7 @@ export default function Home() {
     if (!fileData) {
       const memData = retrieveFile(scannedData.id, scannedData.key);
       if (!memData) {
-        setScanError('File not found. This may happen if the file was uploaded in a different browser session.');
+        setScanError('File not found. Make sure you are using the same browser where you uploaded the file.');
         return;
       }
       if (memData.error) {
@@ -272,7 +331,7 @@ export default function Home() {
       encryptedData = memData.encryptedData;
     }
     
-    // Decrypt and download
+    // Decrypt and download locally
     const decrypted = decryptFile(encryptedData, scannedData.key);
     
     if (decrypted) {
