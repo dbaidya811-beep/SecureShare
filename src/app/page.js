@@ -20,6 +20,7 @@ export default function Home() {
   const [fileKey, setFileKey] = useState(null);
   const [fileId, setFileId] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [scannedData, setScannedData] = useState(null);
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [decryptedContent, setDecryptedContent] = useState(null);
@@ -84,101 +85,76 @@ export default function Home() {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Check file size (File.io has 5GB limit, but we'll use 100MB for practical use)
+    // Check file size (0x0.st has 100MB limit)
     if (file.size > 100 * 1024 * 1024) {
       alert('File too large! Maximum size is 100MB.');
       return;
     }
 
     setSelectedFile(file);
+    setIsUploading(true);
     
-    // Read file
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const fileData = e.target.result;
-      const key = generateEncryptionKey();
-      const id = generateFileId();
+    // Upload to backend server
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
       
-      // Encrypt the file
-      const encrypted = encryptFile(fileData, key);
+      const response = await fetch('http://localhost:3001/upload', {
+        method: 'POST',
+        body: formData
+      });
       
-      // Upload to 0x0.st for cross-device sharing
-      let fileHostLink = '';
-      try {
-        const formData = new FormData();
-        formData.append('file', new Blob([e.target.result], { type: file.type }), file.name);
+      const result = await response.json();
+      
+      if (result.success) {
+        const key = result.key;
+        const id = result.fileId;
         
-        const response = await fetch('https://0x0.st', {
-          method: 'POST',
-          body: formData
+        setFileKey(key);
+        setFileId(id);
+        setEncryptedData('');
+        
+        // Generate QR code with file info
+        const qrData = JSON.stringify({
+          id: id,
+          key: key,
+          name: result.name,
+          type: result.type
         });
         
-        const result = await response.text();
-        if (result.startsWith('https://')) {
-          fileHostLink = result.trim();
-        }
-      } catch (err) {
-        console.error('0x0.st upload error:', err);
+        const qrUrl = await QRCode.toDataURL(qrData, {
+          width: 280,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        });
+        
+        setQrCodeUrl(qrUrl);
+        setUploadSuccess(true);
+        setIsUploading(false);
+        
+        // Add to upload history
+        const newHistoryItem = {
+          id: id,
+          fileName: result.name,
+          fileSize: file.size,
+          fileType: result.type,
+          key: key,
+          timestamp: Date.now(),
+          qrCodeUrl: qrUrl
+        };
+        setUploadHistory(prev => [newHistoryItem, ...prev]);
+      } else {
+        alert('Upload failed: ' + result.error);
+        setIsUploading(false);
       }
-      
-      // Store in localStorage as backup
-      const storageKey = `file_${id}`;
-      const storageData = {
-        encryptedData: encrypted,
-        fileName: file.name,
-        fileType: file.type,
-        key: key,
-        fileHostLink: fileHostLink
-      };
-      
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(storageData));
-      } catch (err) {
-        console.error('localStorage error:', err);
-      }
-      
-      storeFile(id, encrypted, file.name, file.type, key);
-      
-      setFileKey(key);
-      setFileId(id);
-      setEncryptedData(encrypted);
-      
-      // Generate QR code with file info
-      const qrData = JSON.stringify({
-        id: id,
-        key: key,
-        name: file.name,
-        type: file.type,
-        link: fileHostLink,
-        local: !!fileIoLink
-      });
-      
-      const qrUrl = await QRCode.toDataURL(qrData, {
-        width: 280,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff'
-        }
-      });
-      
-      setQrCodeUrl(qrUrl);
-      setUploadSuccess(true);
-      
-      // Add to upload history
-      const newHistoryItem = {
-        id: id,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        key: key,
-        timestamp: Date.now(),
-        qrCodeUrl: qrUrl
-      };
-      setUploadHistory(prev => [newHistoryItem, ...prev]);
-    };
-    
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('Upload failed. Make sure the DB server is running on port 3001.');
+      setIsUploading(false);
+    }
   };
 
   const handleScan = (decodedText) => {
@@ -187,9 +163,12 @@ export default function Home() {
       if (data.id && data.key) {
         setScannedData(data);
         setScanError(null);
+        setManualQrInput('');
+      } else {
+        setScanError('Invalid QR code format');
       }
     } catch (e) {
-      setScanError('Invalid QR code format');
+      setScanError('Invalid QR code format. Please enter the complete QR code data.');
     }
   };
 
@@ -262,85 +241,42 @@ export default function Home() {
   const handleDownload = async () => {
     if (!scannedData) return;
     
-    let fileHostLink = scannedData.link || '';
-    
-    // If we have a 0x0.st link from QR code, download through app
-    if (fileHostLink) {
-      try {
-        setScanError('Downloading file...');
-        
-        // Fetch file from 0x0.st
-        const response = await fetch(fileHostLink);
-        const blob = await response.blob();
-        
-        // Create download link
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = scannedData.name || 'downloaded-file';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        setScanError(null);
-        return;
-      } catch (err) {
-        console.error('Download error:', err);
-        setScanError('Download failed. Please try again.');
-        return;
-      }
-    }
-    
-    // Try to get from localStorage first (for same-browser persistence)
-    let fileData = null;
-    let fileName = '';
-    let fileType = '';
-    let encryptedData = '';
-    
+    // Download from backend server
     try {
-      const stored = localStorage.getItem(`file_${scannedData.id}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.key === scannedData.key) {
-          fileData = parsed;
-          fileName = parsed.fileName;
-          fileType = parsed.fileType;
-          encryptedData = parsed.encryptedData;
-        } else {
-          setScanError('Invalid decryption key');
-          return;
-        }
+      setScanError('Downloading file...');
+      
+      const response = await fetch(
+        `http://localhost:3001/download/${scannedData.id}?key=${scannedData.key}`
+      );
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Download failed');
       }
-    } catch (err) {
-      console.error('localStorage read error:', err);
-    }
-    
-    // Fallback to in-memory store
-    if (!fileData) {
-      const memData = retrieveFile(scannedData.id, scannedData.key);
-      if (!memData) {
-        setScanError('File not found. Make sure you are using the same browser where you uploaded the file.');
-        return;
-      }
-      if (memData.error) {
-        setScanError(memData.error);
-        return;
-      }
-      fileName = memData.fileName;
-      fileType = memData.fileType;
-      encryptedData = memData.encryptedData;
-    }
-    
-    // Decrypt and download locally
-    const decrypted = decryptFile(encryptedData, scannedData.key);
-    
-    if (decrypted) {
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = decrypted;
-      link.download = fileName || 'downloaded-file';
+      link.href = url;
+      link.download = scannedData.name || 'downloaded-file';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      setScanError(null);
+      
+      // Delete file from server after download
+      try {
+        await fetch(
+          `http://localhost:3001/file/${scannedData.id}?key=${scannedData.key}`,
+          { method: 'DELETE' }
+        );
+      } catch (deleteErr) {
+        console.log('Auto-delete error:', deleteErr);
+      }
+    } catch (err) {
+      console.error('Download error:', err);
+      setScanError('Download failed: ' + err.message);
     }
   };
 
