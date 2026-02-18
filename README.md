@@ -23,7 +23,7 @@ A modern, iOS-style decentralized file sharing application with QR code-based se
 - Node.js 18.0 or higher
 - npm or yarn
 
-### Installation
+### Local Development
 
 ```bash
 # Clone the repository
@@ -35,22 +35,52 @@ npm install
 
 # Install backend dependencies
 cd db && npm install && cd ..
-```
 
-### Running the Application
+# Start backend (Terminal 1)
+cd db && npm start
 
-**Step 1: Start the Backend Server**
-```bash
-cd db
-npm start
-```
-The backend server will start on `http://localhost:3001`
-
-**Step 2: Start the Frontend**
-```bash
+# Start frontend (Terminal 2)
 npm run dev
 ```
-The frontend will be available at `http://localhost:3000`
+
+## ☁️ Deployment
+
+### Deploy Backend on Render (Free)
+
+1. **Push your code to GitHub**
+
+2. **Go to [Render Dashboard](https://dashboard.render.com)**
+   - Click "New +" → "Web Service"
+
+3. **Connect your GitHub repository**
+   - Select the `db` folder as the root directory
+   - Or create a separate repository for just the `db` folder
+
+4. **Configure the service:**
+   - Name: `fileshare-api`
+   - Environment: `Node`
+   - Build Command: `npm install`
+   - Start Command: `npm start`
+
+5. **Click "Create Web Service"**
+
+6. **Copy your deployed URL** (e.g., `https://fileshare-api.onrender.com`)
+
+### Deploy Frontend on Vercel
+
+1. **Go to [Vercel Dashboard](https://vercel.com)**
+   - Click "New Project"
+   - Import your GitHub repository
+
+2. **Add Environment Variable:**
+   - Key: `NEXT_PUBLIC_API_URL`
+   - Value: Your Render backend URL (e.g., `https://fileshare-api.onrender.com`)
+
+3. **Click "Deploy"**
+
+### After Deployment
+
+Once deployed, the app will automatically use your production API URL!
 
 ## 📱 How to Use
 
@@ -80,15 +110,16 @@ The frontend will be available at `http://localhost:3000`
 | Frontend | Next.js 16, React, Tailwind CSS |
 | Backend | Express.js 5, Multer |
 | QR Code | qrcode, html5-qrcode |
-| Encryption | crypto-js (AES-256) |
+| Hosting | Vercel (Frontend), Render (Backend) |
 
 ## 📁 Project Structure
 
 ```
 file_shareing/
-├── db/                      # Backend server
+├── db/                      # Backend server (deploy this on Render)
 │   ├── server.js           # Express server
 │   ├── data/              # File storage directory
+│   ├── render.yaml        # Render deployment config
 │   ├── package.json
 │   └── package-lock.json
 ├── src/
@@ -100,9 +131,7 @@ file_shareing/
 │       └── crypto.js       # Encryption utilities
 ├── public/                 # Static assets
 ├── package.json
-├── postcss.config.mjs
-├── eslint.config.mjs
-└── jsconfig.json
+└── README.md
 ```
 
 ## 🔐 Security Features
@@ -123,10 +152,10 @@ file_shareing/
 
 ## ⚠️ Important Notes
 
-- The backend server must be running for file operations to work
-- Files are stored in the `db/data` directory
 - Maximum file size: 100MB
 - Files are automatically deleted after one download
+- For local testing, backend runs on `http://localhost:3001`
+- For production, set `NEXT_PUBLIC_API_URL` environment variable
 
 ## 🤝 Contributing
 

@@ -96,10 +96,11 @@ export default function Home() {
     
     // Upload to backend server
     try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch('http://localhost:3001/upload', {
+      const response = await fetch(`${API_URL}/upload`, {
         method: 'POST',
         body: formData
       });
@@ -240,13 +241,14 @@ export default function Home() {
 
   const handleDownload = async () => {
     if (!scannedData) return;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     
     // Download from backend server
     try {
       setScanError('Downloading file...');
       
       const response = await fetch(
-        `http://localhost:3001/download/${scannedData.id}?key=${scannedData.key}`
+        `${API_URL}/download/${scannedData.id}?key=${scannedData.key}`
       );
       
       if (!response.ok) {
@@ -268,7 +270,7 @@ export default function Home() {
       // Delete file from server after download
       try {
         await fetch(
-          `http://localhost:3001/file/${scannedData.id}?key=${scannedData.key}`,
+          `${API_URL}/file/${scannedData.id}?key=${scannedData.key}`,
           { method: 'DELETE' }
         );
       } catch (deleteErr) {
