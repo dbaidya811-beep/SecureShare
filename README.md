@@ -27,7 +27,7 @@ A modern, iOS-style decentralized file sharing application with QR code-based se
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/dbaidya811-beep/SecureShare.git
 cd file_shareing
 
 # Install frontend dependencies
