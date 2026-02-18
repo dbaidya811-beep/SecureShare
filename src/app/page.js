@@ -356,7 +356,55 @@ export default function Home() {
         {/* Upload Tab */}
         {activeTab === 'upload' && (
           <div className="space-y-6">
-            {!uploadSuccess ? (
+            {isUploading ? (
+              // Loading State
+              <div className="bg-white rounded-3xl shadow-lg p-8">
+                <div className="text-center">
+                  <div className="relative w-24 h-24 mx-auto mb-6">
+                    {/* Animated Circle */}
+                    <svg className="w-24 h-24 animate-spin" viewBox="0 0 100 100">
+                      <circle
+                        className="text-blue-100"
+                        stroke="currentColor"
+                        strokeWidth="8"
+                        fill="none"
+                        cx="50"
+                        cy="50"
+                        r="40"
+                      />
+                      <circle
+                        className="text-blue-600"
+                        stroke="currentColor"
+                        strokeWidth="8"
+                        fill="none"
+                        cx="50"
+                        cy="50"
+                        r="40"
+                        strokeLinecap="round"
+                        strokeDasharray="251.2"
+                        strokeDashoffset="62.8"
+                        transform="rotate(-90 50 50)"
+                      />
+                    </svg>
+                    {/* File Icon in Center */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                    </div>
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-2">Uploading File...</h2>
+                  <p className="text-sm text-gray-500 mb-4">{selectedFile?.name}</p>
+                  <p className="text-xs text-gray-400">{(selectedFile?.size / 1024).toFixed(2)} KB</p>
+                  
+                  {/* Progress Bar */}
+                  <div className="mt-6 w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full animate-pulse" style={{ width: '70%' }}></div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">Encrypting & uploading</p>
+                </div>
+              </div>
+            ) : !uploadSuccess ? (
               <div className="bg-white rounded-3xl shadow-lg p-6">
                 <div className="text-center mb-6">
                   <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
